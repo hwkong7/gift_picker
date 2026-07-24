@@ -45,3 +45,22 @@ input {
   border-radius: 12px;
   font-size: 16px;
 }
+
+.submit {
+  display: block;
+  width: 100%;
+  margin-top: 20px;
+  padding: 16px;
+  border: none;
+  border-radius: 16px;
+  background: #ff69b4;
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  background: #ddd;
+  cursor: not-allowed;
+}
