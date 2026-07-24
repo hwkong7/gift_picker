@@ -7,6 +7,15 @@ import "./App.css";
 
 type Step = "intro" | "name" | "category" | "detail" | "confirm" | "done";
 
+function FairyTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fairy-title">
+      <img src="/fairy-happy.png" alt="" className="fairy-small" />
+      <h1>{children}</h1>
+    </div>
+  );
+}
+
 function App() {
   const [step, setStep] = useState<Step>("intro");
   const [name, setName] = useState("");
@@ -27,6 +36,9 @@ function App() {
       await save(null);
       return;
     }
+    // 요정이 최소 1초는 보이도록
+    await new Promise((r) => setTimeout(r, 800));
+    setLoading(false);
 
     setLoading(true);
     setSearchError("");
@@ -35,11 +47,9 @@ function App() {
 
     try {
       const res = await fetch(
-        `/api/search?query=${encodeURIComponent(detail)}&category=${encodeURIComponent(
-          gift.id === 'etc' ? '' : gift.name
-        )}`
-      )
-      const data = await res.json()
+        `/api/search?query=${encodeURIComponent(detail)}&category=${encodeURIComponent(gift.keyword)}`,
+      );
+      const data = await res.json();
 
       if (!res.ok) {
         setSearchError(data.error ?? "검색에 실패했어요");
@@ -116,7 +126,7 @@ function App() {
         {step === "name" && (
           <div className="scene">
             <div>
-              <h1>이름을 알려주실 수 있나요?</h1>
+              <FairyTitle>이름을 알려주실 수 있나요?</FairyTitle>
               <input
                 type="text"
                 value={name}
@@ -137,7 +147,7 @@ function App() {
         {step === "category" && (
           <div className="scene">
             <div>
-              <h1>{name}님, 어떤 선물을 원하시나요?</h1>
+              <FairyTitle>{name}님, 어떤 선물을 원하시나요?</FairyTitle>
               <div className="gift-list">
                 {gifts.map((g) => (
                   <button
@@ -160,7 +170,7 @@ function App() {
         {step === "detail" && gift && (
           <div className="scene">
             <div>
-              <h1>{gift.question}</h1>
+              <FairyTitle>{gift.question}</FairyTitle>
               <input
                 type="text"
                 value={detail}
@@ -183,9 +193,14 @@ function App() {
 
         {step === "confirm" && (
           <div className="scene">
-            <h1>혹시 이건가요?</h1>
+            <FairyTitle>혹시 이건가요?</FairyTitle>
 
-            {loading && <p>요정이 찾아보는 중이에요... 🔍</p>}
+            {loading && (
+              <div className="loading-box">
+                <img src="/fairy-search.png" alt="" className="fairy-loading" />
+                <p>요정이 찾아보는 중이에요...</p>
+              </div>
+            )}
 
             {!loading && searchError && <p>{searchError}</p>}
 
@@ -246,11 +261,13 @@ function App() {
         )}
 
         {step === "done" && (
-          <div className="scene">
-            <div>
-              <h1>고마워요! 🎉</h1>
-              <p>덕분에 명단을 채웠어요. 꼭 전해드릴게요!</p>
-            </div>
+          <div className="scene done-scene">
+            <img src="/fairy-done.png" alt="" className="fairy-done" />
+            <h1>고마워요! 🎉</h1>
+            <p>
+              덕분에 명단을 채웠어요.
+              <br />꼭 전해드릴게요!
+            </p>
           </div>
         )}
       </div>
