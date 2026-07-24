@@ -1,19 +1,58 @@
 import { useState } from 'react'
 import { gifts } from './gifts'
 import type { Gift } from './gifts'
+import type { Product } from './types'
 import { supabase } from './supabase'
 import './App.css'
 
-type Step = 'intro' | 'name' | 'category' | 'detail' | 'done'
+type Step = 'intro' | 'name' | 'category' | 'detail' | 'confirm' | 'done'
 
 function App() {
   const [step, setStep] = useState<Step>('intro')
   const [name, setName] = useState('')
   const [gift, setGift] = useState<Gift | null>(null)
   const [detail, setDetail] = useState('')
+
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
+
+  const [picked, setPicked] = useState<Product | null>(null)
   const [sending, setSending] = useState(false)
 
-  async function handleSubmit() {
+  async function handleDetailNext() {
+    if (!gift) return
+
+    if (gift.mode === 'text') {
+      await save(null)
+      return
+    }
+
+    setLoading(true)
+    setSearchError('')
+    setPicked(null)
+    setStep('confirm')
+
+    try {
+      const res = await fetch(`/api/search?query=${encodeURIComponent(detail)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setSearchError(data.error ?? '검색에 실패했어요')
+        setProducts([])
+      } else {
+        setProducts(data.products)
+      }
+    } catch (e) {
+      console.error(e)
+      setSearchError('검색에 실패했어요')
+      setProducts([])
+    }
+
+    setLoading(false)
+  }
+
+  async function save(product: Product | null) {
     if (!gift) return
     setSending(true)
 
@@ -21,6 +60,10 @@ function App() {
       name: name.trim(),
       gift_id: gift.id,
       detail: detail.trim(),
+      product_name: product?.name ?? null,
+      product_image: product?.image ?? null,
+      product_url: product?.url ?? null,
+      product_price: product?.price ?? null,
     })
 
     setSending(false)
@@ -98,14 +141,74 @@ function App() {
           />
           <button
             className="submit"
-            onClick={handleSubmit}
+            onClick={handleDetailNext}
             disabled={detail.trim() === '' || sending}
           >
-            {sending ? '전달하는 중...' : '요정에게 알려주기'}
+            {sending ? '전달하는 중...' : '다음'}
           </button>
           <button className="back" onClick={() => setStep('category')}>
             ← 다시 고를래요
           </button>
+        </div>
+      )}
+
+      {step === 'confirm' && (
+        <div>
+          <h1>혹시 이건가요?</h1>
+
+          {loading && <p>요정이 찾아보는 중이에요... 🔍</p>}
+
+          {!loading && searchError && <p>{searchError}</p>}
+
+          {!loading && !searchError && products.length === 0 && (
+            <p>비슷한 걸 못 찾았어요...</p>
+          )}
+
+          {!loading && products.length > 0 && (
+            <div className="product-list">
+              {products.map((p) => (
+                <button
+                  key={p.id}
+                  className={
+                    picked?.id === p.id ? 'product-card selected' : 'product-card'
+                  }
+                  onClick={() => setPicked(p)}
+                >
+                  <img src={p.image} alt={p.name} />
+                  <span className="product-name">{p.name}</span>
+                  <span className="product-price">
+                    {p.price.toLocaleString()}원
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!loading && (
+            <>
+              {picked ? (
+                <button
+                  className="submit"
+                  onClick={() => save(picked)}
+                  disabled={sending}
+                >
+                  {sending ? '전달하는 중...' : '이걸로 할게요!'}
+                </button>
+              ) : (
+                <button
+                  className="submit"
+                  onClick={() => save(null)}
+                  disabled={sending}
+                >
+                  {sending ? '전달하는 중...' : '여기 없어요, 적은 대로 전해주세요'}
+                </button>
+              )}
+
+              <button className="back" onClick={() => setStep('detail')}>
+                ← 다시 적을래요
+              </button>
+            </>
+          )}
         </div>
       )}
 
