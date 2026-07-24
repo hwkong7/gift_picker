@@ -13,6 +13,11 @@
     font-size: 32px;
   }
 }
+@media (max-width: 400px) {
+  .intro-stage { height: 190px; }
+  .fairy { width: 120px; }
+}
+
 .page {
   max-width: 480px;
   margin: 0 auto;
@@ -242,4 +247,135 @@ button {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.scene {
+  position: relative;
+  animation: page-turn 0.5s ease-out;
+  transform-origin: left center;
+  padding: 40px 26px 30px;
+  border-radius: 4px;
+  color: #5c4a3d;
+
+  background-color: #fffdf5;
+  background-image:
+    repeating-linear-gradient(
+      transparent,
+      transparent 33px,
+      #f0e4d8 33px,
+      #f0e4d8 34px
+    );
+  background-position: 0 40px;
+
+  box-shadow:
+    0 1px 2px rgba(140, 110, 90, 0.12),
+    0 8px 24px rgba(180, 140, 160, 0.18);
+}
+
+/* 왼쪽 여백선 */
+.scene::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 18px;
+  width: 1px;
+  background: #f5c9d8;
+}
+
+/* 위쪽 마스킹 테이프 */
+.scene::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 80px;
+  height: 22px;
+  transform: translateX(-50%) rotate(-2deg);
+  background: rgba(255, 200, 220, 0.55);
+  border-left: 2px dashed rgba(255, 255, 255, 0.6);
+  border-right: 2px dashed rgba(255, 255, 255, 0.6);
+}
+
+.intro-stage {
+  position: relative;
+  height: 230px;
+  margin-bottom: 8px;
+}
+
+/* 반짝임 — 요정보다 먼저 */
+.sparkle {
+  position: absolute;
+  font-size: 20px;
+  opacity: 0;
+  animation: twinkle 1.2s ease-out forwards;
+}
+
+.s1 { left: 30%; top: 30px; animation-delay: 0.1s; }
+.s2 { left: 66%; top: 60px; animation-delay: 0.3s; }
+.s3 { left: 48%; top: 5px;  animation-delay: 0.5s; }
+
+@keyframes twinkle {
+  0%   { opacity: 0; transform: scale(0.3) rotate(0deg); }
+  50%  { opacity: 1; transform: scale(1.3) rotate(180deg); }
+  100% { opacity: 0; transform: scale(0.6) rotate(360deg); }
+}
+
+/* 요정 — 뿅 하고 등장 후 둥둥 */
+.fairy {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 150px;
+  height: auto;
+  opacity: 0;
+  transform: translateX(-50%);
+  animation:
+    pop-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.9s forwards,
+    float 2.5s ease-in-out 1.5s infinite;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: translateX(-50%) scale(0.2); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-8px); }
+}
+
+/* 두루마리 — 떨어져서 사라짐 */
+.scroll {
+  position: absolute;
+  left: 30%;
+  top: 130px;
+  font-size: 32px;
+  opacity: 0;
+  animation: drop-away 1.6s ease-in 1.7s forwards;
+}
+
+@keyframes drop-away {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+  30%  { opacity: 1; transform: translate(14px, -10px) rotate(20deg); }
+  100% { opacity: 0; transform: translate(50px, 120px) rotate(160deg); }
+}
+
+/* 글자들 — 순서대로 등장 */
+.intro-title,
+.intro-line1,
+.intro-line2,
+.intro-btn {
+  opacity: 0;
+  animation: fade-up 0.5s ease-out forwards;
+}
+
+.intro-title { animation-delay: 2.6s; }
+.intro-line1 { animation-delay: 3.0s; }
+.intro-line2 { animation-delay: 3.5s; }
+.intro-btn   { animation-delay: 3.9s; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

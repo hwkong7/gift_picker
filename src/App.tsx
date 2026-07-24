@@ -35,9 +35,11 @@ function App() {
 
     try {
       const res = await fetch(
-        `/api/search?query=${encodeURIComponent(detail)}&category=${encodeURIComponent(gift.name)}`,
-      );
-      const data = await res.json();
+        `/api/search?query=${encodeURIComponent(detail)}&category=${encodeURIComponent(
+          gift.id === 'etc' ? '' : gift.name
+        )}`
+      )
+      const data = await res.json()
 
       if (!res.ok) {
         setSearchError(data.error ?? "검색에 실패했어요");
@@ -83,15 +85,31 @@ function App() {
     <div className="page">
       <div className="scene-wrap" key={step}>
         {step === "intro" && (
-          <div className="scene">
-            <div>
-              <h1>큰일났어요! 🧚</h1>
-              <p>오늘 처음 출근한 선물 요정인데, 배달 명단을 잃어버렸어요...</p>
-              <p>저를 좀 도와주실 수 있나요?</p>
-              <button className="submit" onClick={() => setStep("name")}>
-                시작하기
-              </button>
+          <div className="scene intro">
+            <div className="intro-stage">
+              <span className="sparkle s1">✨</span>
+              <span className="sparkle s2">✨</span>
+              <span className="sparkle s3">✨</span>
+              <img className="fairy" src="/fairy.png" alt="선물 요정" />
+              <span className="scroll">📜</span>
             </div>
+
+            <h1 className="intro-title">큰일났어요!</h1>
+            <p className="intro-line1">
+              오늘 처음 출근한 선물 요정인데,
+              <br />
+              배달 명단을 잃어버렸어요...
+            </p>
+            <p className="intro-line2">저를 좀 도와주실 수 있나요?</p>
+
+            <button
+              className="submit intro-btn"
+              onClick={() => {
+                setStep("name");
+              }}
+            >
+              도와줄게요!
+            </button>
           </div>
         )}
 
