@@ -64,3 +64,15 @@ input {
   background: #ddd;
   cursor: not-allowed;
 }
+
+.back {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: none;
+  background: none;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+}

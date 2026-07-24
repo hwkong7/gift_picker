@@ -1,102 +1,122 @@
-import { useState } from "react";
-import { gifts } from "./gifts";
-import "./App.css";
-import { supabase } from "./supabase";
+import { useState } from 'react'
+import { gifts } from './gifts'
+import type { Gift } from './gifts'
+import { supabase } from './supabase'
+import './App.css'
+
+type Step = 'intro' | 'name' | 'category' | 'detail' | 'done'
 
 function App() {
-  const [name, setName] = useState<string>("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [etcText, setEtcText] = useState<string>("");
-  const [sending, setSending] = useState<boolean>(false);
-  const [done, setDone] = useState(false);
-
-  const canSubmit =
-    name.trim() !== "" &&
-    selectedId !== null &&
-    (selectedId !== "etc" || etcText.trim() !== "");
+  const [step, setStep] = useState<Step>('intro')
+  const [name, setName] = useState('')
+  const [gift, setGift] = useState<Gift | null>(null)
+  const [detail, setDetail] = useState('')
+  const [sending, setSending] = useState(false)
 
   async function handleSubmit() {
-    setSending(true);
+    if (!gift) return
+    setSending(true)
 
-    const { error } = await supabase.from("responses").insert({
+    const { error } = await supabase.from('responses').insert({
       name: name.trim(),
-      gift_id: selectedId,
-      etc_text: selectedId === "etc" ? etcText.trim() : null,
-    });
+      gift_id: gift.id,
+      detail: detail.trim(),
+    })
 
-    setSending(false);
+    setSending(false)
 
     if (error) {
-      alert("저장에 실패했어 ㅠㅠ 다시 시도해줘");
-      console.error(error);
-      return;
+      alert('전달에 실패했어요 ㅠㅠ 다시 시도해주세요')
+      console.error(error)
+      return
     }
 
-    setDone(true);
-  }
-  if (done) {
-    return (
-      <div className="page">
-        <h1>생일 선물 뭐 받고 싶으세요?</h1>
-        <p>저장 완료! 고마워요 🎉</p>
-      </div>
-    );
+    setStep('done')
   }
 
   return (
     <div className="page">
-      <h1>생일 선물 뭐 받고 싶으세요?</h1>
-
-      <label className="field">
-        이름
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="이름을 적어줘"
-        />
-      </label>
-
-      <div className="gift-list">
-        {gifts.map((gift) => (
-          <button
-            key={gift.id}
-            className={
-              selectedId === gift.id ? "gift-card selected" : "gift-card"
-            }
-            onClick={() => setSelectedId(gift.id)}
-          >
-            <span className="gift-emoji">{gift.emoji}</span>
-            <span className="gift-name">{gift.name}</span>
+      {step === 'intro' && (
+        <div>
+          <h1>큰일났어요! 🧚</h1>
+          <p>오늘 처음 출근한 선물 요정인데, 배달 명단을 잃어버렸어요...</p>
+          <p>저를 좀 도와주실 수 있나요?</p>
+          <button className="submit" onClick={() => setStep('name')}>
+            시작하기
           </button>
-        ))}
-      </div>
-
-      <button
-        className={selectedId === "etc" ? "gift-card selected" : "gift-card"}
-        onClick={() => setSelectedId("etc")}
-      >
-        <span className="gift-emoji">✏️</span>
-        <span className="gift-name">기타</span>
-      </button>
-
-      {selectedId === "etc" && (
-        <input
-          type="text"
-          value={etcText}
-          onChange={(e) => setEtcText(e.target.value)}
-          placeholder="갖고 싶은 걸 적어줘"
-        />
+        </div>
       )}
-      <button
-        className="submit"
-        onClick={handleSubmit}
-        disabled={!canSubmit || sending}
-      >
-        {sending ? "저장 중..." : "저장하기"}
-      </button>
+
+      {step === 'name' && (
+        <div>
+          <h1>이름을 알려주실 수 있나요?</h1>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="이름을 적어주세요"
+          />
+          <button
+            className="submit"
+            onClick={() => setStep('category')}
+            disabled={name.trim() === ''}
+          >
+            다음
+          </button>
+        </div>
+      )}
+
+      {step === 'category' && (
+        <div>
+          <h1>{name}님, 어떤 선물을 원하시나요?</h1>
+          <div className="gift-list">
+            {gifts.map((g) => (
+              <button
+                key={g.id}
+                className="gift-card"
+                onClick={() => {
+                  setGift(g)
+                  setStep('detail')
+                }}
+              >
+                <span className="gift-emoji">{g.emoji}</span>
+                <span className="gift-name">{g.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {step === 'detail' && gift && (
+        <div>
+          <h1>{gift.question}</h1>
+          <input
+            type="text"
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="자세히 알려주세요"
+          />
+          <button
+            className="submit"
+            onClick={handleSubmit}
+            disabled={detail.trim() === '' || sending}
+          >
+            {sending ? '전달하는 중...' : '요정에게 알려주기'}
+          </button>
+          <button className="back" onClick={() => setStep('category')}>
+            ← 다시 고를래요
+          </button>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div>
+          <h1>고마워요! 🎉</h1>
+          <p>덕분에 명단을 채웠어요. 꼭 전해드릴게요!</p>
+        </div>
+      )}
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
