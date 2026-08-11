@@ -25,8 +25,9 @@ export default async function handler(
     return;
   }
 
-  const id = process.env.NAVER_CLIENT_ID;
-  const secret = process.env.NAVER_CLIENT_SECRET;
+  // trim: 환경변수 복사할 때 딸려온 공백/줄바꿈 제거
+  const id = process.env.NAVER_CLIENT_ID?.trim();
+  const secret = process.env.NAVER_CLIENT_SECRET?.trim();
 
   if (!id || !secret) {
     res.statusCode = 500;
@@ -59,9 +60,12 @@ export default async function handler(
     if (!r.ok) {
       const text = await r.text();
       console.error("네이버 응답 실패:", r.status, text);
+      // 어떤 Client ID가 쓰였는지 확인용 (원인 파악 후 지워도 됨)
+      console.error("사용된 ID 앞 4글자:", id.slice(0, 4), "/ 길이:", id.length);
+
       res.statusCode = 502;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ error: "네이버 검색 실패" }));
+      res.end(JSON.stringify({ error: "네이버 검색 실패", detail: text }));
       return;
     }
 
@@ -88,7 +92,7 @@ export default async function handler(
 }
 
 async function refineQuery(query: string, category: string): Promise<string> {
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.GEMINI_API_KEY?.trim();
   if (!key) return query;
 
   const prompt = `너는 한국 쇼핑몰 검색어를 만드는 도우미야.
@@ -112,11 +116,13 @@ async function refineQuery(query: string, category: string): Promise<string> {
 
   try {
     const res = await fetch(
-      // v1beta + 최신 flash 모델
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key, 
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
         }),
