@@ -49,6 +49,11 @@ export default async function handler(
   const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0);
   const retry = url.searchParams.get("retry") === "1";
 
+  const staticMust = (url.searchParams.get("must") ?? "")
+    .split(",")
+    .map((w) => w.trim())
+    .filter(Boolean);
+
   if (!query) return json(400, { error: "query가 필요해요" });
 
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
@@ -66,6 +71,7 @@ export default async function handler(
     if (
       category &&
       !searchWord.toLowerCase().includes(category.toLowerCase()) &&
+      staticMust.length === 0 &&        // ← 이 줄 추가
       refined.must.length === 0
     ) {
       searchWord = `${searchWord} ${category}`;
@@ -134,7 +140,9 @@ export default async function handler(
       .filter((p) => p.name && p.url);
 
     // ── 5. 카테고리 이탈 필터링 ──────────────────────
-    const must = refined.must.map((w) => w.toLowerCase()).filter(Boolean);
+    const must = (staticMust.length > 0 ? staticMust : refined.must)
+      .map((w) => w.toLowerCase())
+      .filter(Boolean);
 
     const filtered =
       must.length > 0

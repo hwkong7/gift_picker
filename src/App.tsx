@@ -47,7 +47,9 @@ function App() {
 
     try {
       const res = await fetch(
-        `/api/search?query=${encodeURIComponent(detail)}&category=${encodeURIComponent(gift.keyword)}`,
+        `/api/search?query=${encodeURIComponent(detail)}` +
+          `&category=${encodeURIComponent(gift.keyword)}` +
+          `&must=${encodeURIComponent((gift.must ?? []).join(","))}`,
       );
       const data = await res.json();
 
