@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { gifts } from "./gifts";
 import type { Gift } from "./gifts";
 import type { Product } from "./types";
@@ -18,24 +18,23 @@ function FairyTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PaginationDots({
-  current,
-  total,
-}: {
-  current: number;
-  total: number;
-}) {
+function PageDots({ current, total }: { current: number; total: number }) {
   if (total <= 1) return null;
 
-  const maxVisible = 5;
-  const pages: (number | "ellipsis")[] =
-    total <= maxVisible
-      ? Array.from({ length: total }, (_, i) => i + 1)
-      : [1, 2, 3, "ellipsis", total];
+  const items: (number | "ellipsis")[] = [];
+  for (let p = 1; p <= total; p++) {
+    const isEdge = p === 1 || p === total;
+    const isNearCurrent = Math.abs(p - current) <= 1;
+    if (isEdge || isNearCurrent) {
+      items.push(p);
+    } else if (items[items.length - 1] !== "ellipsis") {
+      items.push("ellipsis");
+    }
+  }
 
   return (
     <div className="page-dots">
-      {pages.map((p, i) =>
+      {items.map((p, i) =>
         p === "ellipsis" ? (
           <span key={`e-${i}`} className="page-dot ellipsis">
             ···
@@ -43,7 +42,7 @@ function PaginationDots({
         ) : (
           <span
             key={p}
-            className={p <= current ? "page-dot filled" : "page-dot"}
+            className={p === current ? "page-dot filled" : "page-dot"}
           />
         ),
       )}
@@ -63,30 +62,33 @@ function App() {
   const [searchError, setSearchError] = useState("");
   const [nextOffset, setNextOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  const [searchedQuery, setSearchedQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(0);
+  const touchStartX = useRef<number | null>(null);
 
   const [picked, setPicked] = useState<Product | null>(null);
   const [sending, setSending] = useState(false);
 
-  function buildSearchUrl(offset: number) {
+  const totalLoadedPages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const visibleProducts = products.slice(
+    currentPage * PAGE_SIZE,
+    currentPage * PAGE_SIZE + PAGE_SIZE,
+  );
+
+  function buildSearchUrl(offset: number, query: string) {
     if (!gift) return "";
     return (
-      `/api/search?query=${encodeURIComponent(detail)}` +
+      `/api/search?query=${encodeURIComponent(query)}` +
       `&category=${encodeURIComponent(gift.keyword)}` +
       `&must=${encodeURIComponent((gift.must ?? []).join(","))}` +
       `&offset=${offset}`
     );
   }
 
-  async function handleDetailNext() {
+  async function runSearch(query: string) {
     if (!gift) return;
-
-    if (gift.mode === "text") {
-      await save(null);
-      return;
-    }
-    // 요정이 최소 1초는 보이도록
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
+    const trimmed = query.trim();
+    if (!trimmed) return;
 
     setLoading(true);
     setSearchError("");
@@ -94,10 +96,11 @@ function App() {
     setProducts([]);
     setNextOffset(0);
     setTotal(0);
-    setStep("confirm");
+    setCurrentPage(0);
+    setSearchedQuery(trimmed);
 
     try {
-      const res = await fetch(buildSearchUrl(0));
+      const res = await fetch(buildSearchUrl(0, trimmed));
       const data = await res.json();
 
       if (!res.ok) {
@@ -117,30 +120,64 @@ function App() {
     setLoading(false);
   }
 
+  async function handleDetailNext() {
+    if (!gift) return;
+
+    if (gift.mode === "text") {
+      await save(null);
+      return;
+    }
+    // 요정이 최소 1초는 보이도록
+    await new Promise((r) => setTimeout(r, 800));
+    setStep("confirm");
+    await runSearch(detail);
+  }
+
   async function loadMoreProducts() {
     if (loadingMore) return;
     setLoadingMore(true);
 
     try {
-      const res = await fetch(buildSearchUrl(nextOffset));
+      const res = await fetch(buildSearchUrl(nextOffset, searchedQuery));
       const data = await res.json();
 
       if (res.ok) {
-        setProducts((prev) => {
-          const seen = new Set(prev.map((p) => p.id));
-          const fresh = (data.products as Product[]).filter(
-            (p) => !seen.has(p.id),
-          );
-          return [...prev, ...fresh];
-        });
+        const fresh = (data.products as Product[]).filter(
+          (p) => !products.some((existing) => existing.id === p.id),
+        );
+        const newLength = products.length + fresh.length;
+
+        setProducts((prev) => [...prev, ...fresh]);
         setNextOffset(data.nextOffset ?? nextOffset + PAGE_SIZE);
         setTotal(data.total ?? total);
+        setCurrentPage(Math.max(0, Math.ceil(newLength / PAGE_SIZE) - 1));
       }
     } catch (e) {
       console.error(e);
     }
 
     setLoadingMore(false);
+  }
+
+  function goPrevPage() {
+    setCurrentPage((p) => Math.max(0, p - 1));
+  }
+
+  function goNextPage() {
+    setCurrentPage((p) => Math.min(totalLoadedPages - 1, p + 1));
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) goNextPage();
+    else goPrevPage();
   }
 
   async function save(product: Product | null) {
@@ -270,6 +307,30 @@ function App() {
 
         {step === "confirm" && (
           <div className="scene">
+            <div className="search-box">
+              <input
+                type="text"
+                value={detail}
+                onChange={(e) => setDetail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    runSearch(detail);
+                  }
+                }}
+                placeholder="검색어를 입력해주세요"
+              />
+              <button
+                type="button"
+                className="search-box-btn"
+                onClick={() => runSearch(detail)}
+                disabled={loading || detail.trim() === ""}
+                aria-label="다시 검색"
+              >
+                🔍
+              </button>
+            </div>
+
             <FairyTitle>혹시 이건가요?</FairyTitle>
 
             {loading && (
@@ -287,34 +348,58 @@ function App() {
 
             {!loading && products.length > 0 && (
               <>
-                <div className="product-list">
-                  {products.map((p) => (
-                    <button
-                      key={p.id}
-                      className={
-                        picked?.id === p.id
-                          ? "product-card selected"
-                          : "product-card"
-                      }
-                      onClick={() => setPicked(p)}
-                    >
-                      <img src={p.image} alt={p.name} />
-                      <span className="product-name">{p.name}</span>
-                      <span className="product-price">
-                        {p.price.toLocaleString()}원
-                      </span>
-                    </button>
-                  ))}
+                <div className="product-pager">
+                  <button
+                    type="button"
+                    className="page-arrow"
+                    onClick={goPrevPage}
+                    disabled={currentPage === 0}
+                    aria-label="이전 페이지"
+                  >
+                    ‹
+                  </button>
+
+                  <div
+                    className="product-list"
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                  >
+                    {visibleProducts.map((p) => (
+                      <button
+                        key={p.id}
+                        className={
+                          picked?.id === p.id
+                            ? "product-card selected"
+                            : "product-card"
+                        }
+                        onClick={() => setPicked(p)}
+                      >
+                        <img src={p.image} alt={p.name} />
+                        <span className="product-name">{p.name}</span>
+                        <span className="product-price">
+                          {p.price.toLocaleString()}원
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="page-arrow"
+                    onClick={goNextPage}
+                    disabled={currentPage >= totalLoadedPages - 1}
+                    aria-label="다음 페이지"
+                  >
+                    ›
+                  </button>
                 </div>
 
-                {total > PAGE_SIZE && (
+                {totalLoadedPages > 1 && (
                   <div className="page-info">
-                    <PaginationDots
-                      current={Math.ceil(products.length / PAGE_SIZE)}
-                      total={Math.ceil(total / PAGE_SIZE)}
-                    />
+                    <PageDots current={currentPage + 1} total={totalLoadedPages} />
                     <span className="page-count-text">
-                      {products.length} / {total}개 보는 중
+                      {currentPage + 1} / {totalLoadedPages}페이지 · 총{" "}
+                      {total}개
                     </span>
                   </div>
                 )}
@@ -325,7 +410,7 @@ function App() {
                     onClick={loadMoreProducts}
                     disabled={loadingMore}
                   >
-                    {loadingMore ? "더 찾는 중..." : "더 보기"}
+                    {loadingMore ? "더 찾는 중..." : "더 찾아보기"}
                   </button>
                 )}
               </>

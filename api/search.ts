@@ -26,9 +26,13 @@ type CacheEntry = {
   at: number;
 };
 
+type RefineEntry = { keyword: string; must: string[]; at: number };
+
 const cache = new Map<string, CacheEntry>();
+const refineCache = new Map<string, RefineEntry>();
 const CACHE_TTL = 1000 * 60 * 60; // 1시간
 const PAGE_SIZE = 4;
+const GEMINI_TIMEOUT = 3000; // ms — 느려지면 원본 검색어로 즉시 폴백
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -63,9 +67,18 @@ export default async function handler(
 
   try {
     // ── 1. 검색어 생성 ──────────────────────────────
-    const refined = geminiKey
-      ? await refineQuery(query, category, geminiKey, retry)
-      : { keyword: query, must: [] as string[] };
+    const refineKey = `${query}::${category}`;
+    const cachedRefine = !retry ? refineCache.get(refineKey) : undefined;
+
+    let refined: { keyword: string; must: string[] };
+    if (cachedRefine && Date.now() - cachedRefine.at < CACHE_TTL) {
+      refined = cachedRefine;
+    } else if (geminiKey) {
+      refined = await refineQuery(query, category, geminiKey, retry);
+      if (!retry) refineCache.set(refineKey, { ...refined, at: Date.now() });
+    } else {
+      refined = { keyword: query, must: [] as string[] };
+    }
 
     let searchWord = refined.keyword.trim();
     if (
@@ -229,6 +242,9 @@ JSON만 출력해. 설명, 마크다운 코드블록 금지.
   예: 텀블러 → ["텀블러", "보온병", "물병"]
 ${retry ? "- 이번엔 앞서와 다른 품목이나 다른 각도로 골라줘." : ""}`;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEMINI_TIMEOUT);
+
   try {
     const model = process.env.GEMINI_MODEL?.trim() || "gemini-flash-latest";
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -246,6 +262,7 @@ ${retry ? "- 이번엔 앞서와 다른 품목이나 다른 각도로 골라줘.
           responseMimeType: "application/json",
         },
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -276,8 +293,14 @@ ${retry ? "- 이번엔 앞서와 다른 품목이나 다른 각도로 골라줘.
     console.log(`AI 변환: "${query}" → "${keyword}"`);
     return { keyword, must };
   } catch (error) {
-    console.error("Gemini 오류:", error);
+    if (error instanceof Error && error.name === "AbortError") {
+      console.warn(`Gemini 타임아웃(${GEMINI_TIMEOUT}ms), 원본 검색어 사용`);
+    } else {
+      console.error("Gemini 오류:", error);
+    }
     return { keyword: query, must: [] };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
