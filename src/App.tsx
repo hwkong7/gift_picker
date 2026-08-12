@@ -7,11 +7,46 @@ import "./App.css";
 
 type Step = "intro" | "name" | "category" | "detail" | "confirm" | "done";
 
+const PAGE_SIZE = 4;
+
 function FairyTitle({ children }: { children: React.ReactNode }) {
   return (
     <div className="fairy-title">
       <img src="/fairy-happy.png" alt="" className="fairy-small" />
       <h1>{children}</h1>
+    </div>
+  );
+}
+
+function PaginationDots({
+  current,
+  total,
+}: {
+  current: number;
+  total: number;
+}) {
+  if (total <= 1) return null;
+
+  const maxVisible = 5;
+  const pages: (number | "ellipsis")[] =
+    total <= maxVisible
+      ? Array.from({ length: total }, (_, i) => i + 1)
+      : [1, 2, 3, "ellipsis", total];
+
+  return (
+    <div className="page-dots">
+      {pages.map((p, i) =>
+        p === "ellipsis" ? (
+          <span key={`e-${i}`} className="page-dot ellipsis">
+            ···
+          </span>
+        ) : (
+          <span
+            key={p}
+            className={p <= current ? "page-dot filled" : "page-dot"}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -24,10 +59,23 @@ function App() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [nextOffset, setNextOffset] = useState(0);
+  const [total, setTotal] = useState(0);
 
   const [picked, setPicked] = useState<Product | null>(null);
   const [sending, setSending] = useState(false);
+
+  function buildSearchUrl(offset: number) {
+    if (!gift) return "";
+    return (
+      `/api/search?query=${encodeURIComponent(detail)}` +
+      `&category=${encodeURIComponent(gift.keyword)}` +
+      `&must=${encodeURIComponent((gift.must ?? []).join(","))}` +
+      `&offset=${offset}`
+    );
+  }
 
   async function handleDetailNext() {
     if (!gift) return;
@@ -43,14 +91,13 @@ function App() {
     setLoading(true);
     setSearchError("");
     setPicked(null);
+    setProducts([]);
+    setNextOffset(0);
+    setTotal(0);
     setStep("confirm");
 
     try {
-      const res = await fetch(
-        `/api/search?query=${encodeURIComponent(detail)}` +
-          `&category=${encodeURIComponent(gift.keyword)}` +
-          `&must=${encodeURIComponent((gift.must ?? []).join(","))}`,
-      );
+      const res = await fetch(buildSearchUrl(0));
       const data = await res.json();
 
       if (!res.ok) {
@@ -58,6 +105,8 @@ function App() {
         setProducts([]);
       } else {
         setProducts(data.products);
+        setNextOffset(data.nextOffset ?? data.products.length);
+        setTotal(data.total ?? data.products.length);
       }
     } catch (e) {
       console.error(e);
@@ -66,6 +115,32 @@ function App() {
     }
 
     setLoading(false);
+  }
+
+  async function loadMoreProducts() {
+    if (loadingMore) return;
+    setLoadingMore(true);
+
+    try {
+      const res = await fetch(buildSearchUrl(nextOffset));
+      const data = await res.json();
+
+      if (res.ok) {
+        setProducts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          const fresh = (data.products as Product[]).filter(
+            (p) => !seen.has(p.id),
+          );
+          return [...prev, ...fresh];
+        });
+        setNextOffset(data.nextOffset ?? nextOffset + PAGE_SIZE);
+        setTotal(data.total ?? total);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setLoadingMore(false);
   }
 
   async function save(product: Product | null) {
@@ -211,25 +286,49 @@ function App() {
             )}
 
             {!loading && products.length > 0 && (
-              <div className="product-list">
-                {products.map((p) => (
-                  <button
-                    key={p.id}
-                    className={
-                      picked?.id === p.id
-                        ? "product-card selected"
-                        : "product-card"
-                    }
-                    onClick={() => setPicked(p)}
-                  >
-                    <img src={p.image} alt={p.name} />
-                    <span className="product-name">{p.name}</span>
-                    <span className="product-price">
-                      {p.price.toLocaleString()}원
+              <>
+                <div className="product-list">
+                  {products.map((p) => (
+                    <button
+                      key={p.id}
+                      className={
+                        picked?.id === p.id
+                          ? "product-card selected"
+                          : "product-card"
+                      }
+                      onClick={() => setPicked(p)}
+                    >
+                      <img src={p.image} alt={p.name} />
+                      <span className="product-name">{p.name}</span>
+                      <span className="product-price">
+                        {p.price.toLocaleString()}원
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {total > PAGE_SIZE && (
+                  <div className="page-info">
+                    <PaginationDots
+                      current={Math.ceil(products.length / PAGE_SIZE)}
+                      total={Math.ceil(total / PAGE_SIZE)}
+                    />
+                    <span className="page-count-text">
+                      {products.length} / {total}개 보는 중
                     </span>
+                  </div>
+                )}
+
+                {products.length < total && (
+                  <button
+                    className="load-more"
+                    onClick={loadMoreProducts}
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? "더 찾는 중..." : "더 보기"}
                   </button>
-                ))}
-              </div>
+                )}
+              </>
             )}
 
             {!loading && (
